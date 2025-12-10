@@ -1,0 +1,24 @@
+[build]
+target = "x86_64-devine.json"
+
+[unstable]
+build-std = ["core", "compiler_builtins", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
+
+[target.x86_64-devine]
+runner = "bootimage runner"
+
+[target.aarch64-devine]
+runner = "qemu-system-aarch64 -machine virt -cpu cortex-a72 -kernel"
+
+[target.'cfg(target_arch = "x86_64")']
+rustflags = ["-C", "link-arg=-nostartfiles"]
+
+[target.'cfg(target_arch = "aarch64")']
+rustflags = ["-C", "link-arg=-nostartfiles"]
+
+[env]
+CC_x86_64_unknown_none = "clang"
+CXX_x86_64_unknown_none = "clang++"
+CC_aarch64_unknown_none = "aarch64-linux-gnu-gcc"
+CXX_aarch64_unknown_none = "aarch64-linux-gnu-g++"

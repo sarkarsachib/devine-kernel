@@ -1,0 +1,16 @@
+[package]
+name = "devine-perf-cpp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+cxx = { workspace = true }
+
+[build-dependencies]
+cc = { workspace = true }
+cxx-build = { workspace = true }
+
+[lib]
+path = "src/lib.rs"
