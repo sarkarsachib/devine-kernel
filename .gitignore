@@ -1,0 +1,9 @@
+build/
+.vscode/
+.idea/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+kernel_main
