@@ -1,0 +1,24 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2021"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+spin = { version = "0.9", default-features = false, features = ["spin_mutex", "once"] }
+bitflags = "2.4"
+x86_64 = { version = "0.14", default-features = false, features = ["instructions", "inline_asm"] }
+
+[dev-dependencies]
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = []
+test = []
