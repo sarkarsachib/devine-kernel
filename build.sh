@@ -4,51 +4,67 @@ set -e
 
 ARCH=${1:-x86_64}
 BUILD_DIR="build/${ARCH}"
-TARGET_FILE="target/${ARCH}.json"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mkdir -p "$BUILD_DIR"
+
+cd "$PROJECT_ROOT"
 
 case "$ARCH" in
     x86_64)
         echo "Building x86_64 kernel..."
         
-        as -32 src/x86_64/boot.s -o "$BUILD_DIR/boot.o"
+        # Add rust target support
+        rustup target add x86_64-unknown-linux-gnu 2>/dev/null || true
         
-        rustup target add i686-unknown-linux-gnu 2>/dev/null || true
-        
+        # Build using custom target spec
         cargo build \
-            --target i686-unknown-linux-gnu \
+            --target x86_64-devine.json \
             --release \
             2>&1 | tee "$BUILD_DIR/build.log"
         
-        i686-linux-gnu-ld \
-            -T src/x86_64/linker.ld \
-            -o "$BUILD_DIR/kernel.elf" \
-            "$BUILD_DIR/boot.o" \
-            target/i686-unknown-linux-gnu/release/libkernel.a
+        # The kernel output is the result of the build process
+        # Copy it to the build directory for easier access
+        if [ -f target/x86_64-devine/release/kernel ]; then
+            cp target/x86_64-devine/release/kernel "$BUILD_DIR/kernel.elf"
+        fi
         
-        echo "x86_64 kernel built: $BUILD_DIR/kernel.elf"
+        if [ -f "$BUILD_DIR/kernel.elf" ]; then
+            echo "x86_64 kernel built: $BUILD_DIR/kernel.elf"
+        else
+            echo "ERROR: Kernel binary not found at expected location"
+            echo "Looking in target directory..."
+            find target -name "kernel" -type f 2>/dev/null | head -5
+            exit 1
+        fi
         ;;
         
     arm64)
         echo "Building ARM64 kernel..."
         
-        aarch64-linux-gnu-as src/arm64/boot.s -o "$BUILD_DIR/boot.o"
-        
+        # Add rust target support
         rustup target add aarch64-unknown-linux-gnu 2>/dev/null || true
         
+        # Build using custom target spec
         cargo build \
-            --target aarch64-unknown-linux-gnu \
+            --target aarch64-devine.json \
             --release \
             2>&1 | tee "$BUILD_DIR/build.log"
         
-        aarch64-linux-gnu-ld \
-            -T src/arm64/linker.ld \
-            -o "$BUILD_DIR/kernel.elf" \
-            "$BUILD_DIR/boot.o" \
-            target/aarch64-unknown-linux-gnu/release/libkernel.a
+        # The kernel output is the result of the build process
+        # Copy it to the build directory for easier access
+        if [ -f target/aarch64-devine/release/kernel ]; then
+            cp target/aarch64-devine/release/kernel "$BUILD_DIR/kernel.elf"
+        fi
         
-        echo "ARM64 kernel built: $BUILD_DIR/kernel.elf"
+        if [ -f "$BUILD_DIR/kernel.elf" ]; then
+            echo "ARM64 kernel built: $BUILD_DIR/kernel.elf"
+        else
+            echo "ERROR: Kernel binary not found at expected location"
+            echo "Looking in target directory..."
+            find target -name "kernel" -type f 2>/dev/null | head -5
+            exit 1
+        fi
         ;;
         
     *)
