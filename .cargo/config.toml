@@ -22,3 +22,13 @@ CC_x86_64_unknown_none = "clang"
 CXX_x86_64_unknown_none = "clang++"
 CC_aarch64_unknown_none = "aarch64-linux-gnu-gcc"
 CXX_aarch64_unknown_none = "aarch64-linux-gnu-g++"
+# Don't use default target, require explicit --target
+# target = "x86_64-unknown-linux-gnu"
+
+[target.i686-unknown-linux-gnu]
+linker = "i686-linux-gnu-gcc"
+ar = "i686-linux-gnu-ar"
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+ar = "aarch64-linux-gnu-ar"
