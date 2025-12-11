@@ -1,0 +1,16 @@
+[package]
+name = "devine-kernel-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+spin = { workspace = true }
+volatile = { workspace = true }
+bitflags = { workspace = true }
+devine-arch = { path = "../devine-arch" }
+devine-boot = { path = "../devine-boot" }
+
+[lib]
+crate-type = ["staticlib"]
