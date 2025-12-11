@@ -1,12 +1,28 @@
 /* Device Driver Interface */
 
-#include "../../include/types.h"
+#include "../include/types.h"
+#include "../include/console.h"
 
 // Device types
 #define DEVICE_CHAR    1
 #define DEVICE_BLOCK   2
 #define DEVICE_NETWORK 3
 #define DEVICE_FS      4
+
+// Forward declarations for external functions
+extern void* malloc(u64 size);
+extern void free(void* ptr);
+extern i32 strcmp(const char* s1, const char* s2);
+extern i32 strncmp(const char* s1, const char* s2, u64 n);
+extern char* strncpy(char* dest, const char* src, u64 n);
+extern u64 system_time;
+
+// Forward declarations for driver init functions
+void virtio_blk_init(void* pci_dev);
+void virtio_net_init(void* pci_dev);
+void virtio_mmio_init(void* dt_dev);
+void uart16550_init(void);
+void pl011_init(void* dt_dev);
 
 // Device operations structure
 typedef struct device_ops {
@@ -99,4 +115,15 @@ void device_init(void) {
     console_print("  Initializing block devices...\n");
     console_print("  Initializing network devices...\n");
     console_print("Device subsystem initialized\n");
+}
+
+// VFS device node creation stub
+void vfs_create_device_node(const char* path, u64 mode, u32 major, u32 minor) {
+    console_print("Creating device node: ");
+    console_print(path);
+    console_print(" (major=");
+    console_print_dec(major);
+    console_print(", minor=");
+    console_print_dec(minor);
+    console_print(")\n");
 }

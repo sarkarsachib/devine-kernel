@@ -4,6 +4,7 @@ fn main() {
     let mut build = cc::Build::new();
     build
         .file("src/cpp/crypto.cpp")
+        .file("src/profiler.cpp")
         .cpp(true)
         .flag_if_supported("-std=c++17")
         .flag_if_supported("-fno-exceptions")
@@ -24,6 +25,7 @@ fn main() {
 
     cxx_build::bridge("src/lib.rs")
         .file("src/cpp/crypto.cpp")
+        .file("src/profiler.cpp")
         .flag_if_supported("-std=c++17")
         .flag_if_supported("-fno-exceptions")
         .flag_if_supported("-fno-rtti")
@@ -33,5 +35,7 @@ fn main() {
 
     println!("cargo:rerun-if-changed=src/lib.rs");
     println!("cargo:rerun-if-changed=src/cpp/crypto.cpp");
+    println!("cargo:rerun-if-changed=src/profiler.cpp");
     println!("cargo:rerun-if-changed=include/crypto.hpp");
+    println!("cargo:rerun-if-changed=include/profiler.hpp");
 }
