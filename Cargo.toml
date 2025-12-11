@@ -2,6 +2,15 @@
 name = "kernel"
 version = "0.1.0"
 edition = "2021"
+license = "CC0-1.0"
+publish = false
+
+# This repository contains multiple build paths (a Rust kernel core plus
+# additional C/C++ infrastructure). The Rust workspace is primarily consumed as
+# libraries and boot images; we disable auto-discovered binaries to keep
+# `cargo test` focused on the library targets.
+autobins = false
+
 [workspace]
 resolver = "2"
 members = [
@@ -19,12 +28,6 @@ edition = "2021"
 license = "CC0-1.0"
 authors = ["Devine Contributors"]
 
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
-
 [dependencies]
 spin = { version = "0.9", default-features = false, features = ["spin_mutex", "once"] }
 bitflags = "2.4"
@@ -33,13 +36,20 @@ x86_64 = { version = "0.14", default-features = false, features = ["instructions
 [dev-dependencies]
 
 [lib]
+name = "kernel"
 crate-type = ["rlib", "staticlib"]
 
 [features]
 default = []
 test = []
-lto = true
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
 opt-level = 3
+lto = true
 codegen-units = 1
 
 [workspace.dependencies]
@@ -50,30 +60,3 @@ bitflags = "2.4"
 cc = "1.0"
 cxx = "1.0"
 cxx-build = "1.0"
-[package]
-name = "kernel"
-version = "0.1.0"
-edition = "2021"
-
-[lib]
-name = "kernel"
-crate-type = ["staticlib"]
-
-[[bin]]
-name = "kernel"
-path = "src/main.rs"
-
-[dependencies]
-
-[profile.dev]
-opt-level = 0
-debug = true
-
-[profile.release]
-opt-level = 3
-debug = false
-lto = true
-codegen-units = 1
-
-[features]
-default = []

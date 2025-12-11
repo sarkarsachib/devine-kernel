@@ -171,9 +171,11 @@ This document summarizes the implementation of the foundational memory and task-
 **Location**: `src/syscall/mod.rs`
 
 **Key Features**:
-- Unified syscall handler
-- Error handling with `SyscallError`
-- Integration with process and memory subsystems
+- Descriptor‑driven syscall dispatch (no `match` cascade)
+- Privilege ring + capability enforcement before handler invocation
+- Linux‑style negative errno return values
+
+See `docs/SYSCALLS.md` for the full multi‑architecture ABI definition.
 
 ### 4. Architecture Support
 
