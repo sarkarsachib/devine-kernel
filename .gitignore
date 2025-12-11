@@ -1,3 +1,13 @@
+/target
+Cargo.lock
+*.swp
+*.swo
+*~
+.DS_Store
+*.iso
+*.bin
+*.o
+build/
 build/
 .vscode/
 .idea/
