@@ -55,3 +55,12 @@ typedef i64 isize;
 #define ERR_NO_MEMORY   -4
 #define ERR_BUSY        -5
 #define ERR_AGAIN       -6
+
+// File types for VFS
+#define S_IFREG    0x1000
+#define S_IFDIR    0x2000
+#define S_IFLNK    0x3000
+#define S_IFCHR    0x4000
+#define S_IFBLK    0x5000
+#define S_IFIFO    0x6000
+#define S_IFSOCK   0x7000

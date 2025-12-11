@@ -1,7 +1,26 @@
 /* Virtual File System (VFS) Implementation */
 
-#include "../../include/types.h"
-#include "../../include/security.h"
+#include "../include/types.h"
+#include "../include/console.h"
+
+// Forward declarations
+extern void* malloc(u64 size);
+extern void free(void* ptr);
+extern i32 strcmp(const char* s1, const char* s2);
+extern i32 strncmp(const char* s1, const char* s2, u64 n);
+extern char* strncpy(char* dest, const char* src, u64 n);
+extern char* strtok(char* str, const char* delim);
+extern char* strrchr(const char* str, int c);
+extern u64 system_time;
+
+// Stub implementations for security functions
+static inline u64 get_current_pid(void) {
+    return 0;
+}
+
+static inline bool security_check_capability(u64 pid, u64 permissions, u64 cap) {
+    return true;
+}
 
 // VFS node structure
 typedef struct vfs_node {
