@@ -10,7 +10,6 @@ spin = { workspace = true }
 volatile = { workspace = true }
 bitflags = { workspace = true }
 devine-arch = { path = "../devine-arch" }
-devine-boot = { path = "../devine-boot" }
 
 [lib]
 crate-type = ["staticlib"]

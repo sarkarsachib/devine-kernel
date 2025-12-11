@@ -1,6 +1,7 @@
 #[cfg(not(test))]
 extern crate alloc;
 
+use alloc::vec;
 use alloc::vec::Vec;
 use core::convert::TryInto;
 

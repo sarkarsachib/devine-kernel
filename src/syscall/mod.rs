@@ -1,7 +1,7 @@
 #[cfg(not(test))]
 extern crate alloc;
 
-use alloc::{collections::VecDeque, string::String, vec::Vec};
+use alloc::{collections::VecDeque, string::{String, ToString}, vec::Vec};
 use core::{slice, str};
 
 use spin::Mutex;
@@ -13,7 +13,6 @@ use crate::process::{
     create_thread,
     scheduler,
     thread::{self, ThreadState, THREAD_TABLE},
-    FileDescriptorTable,
     ProcessId,
     ThreadId,
     Context,
