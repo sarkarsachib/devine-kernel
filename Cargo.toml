@@ -1,0 +1,79 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2021"
+[workspace]
+resolver = "2"
+members = [
+    "crates/devine-kernel-core",
+    "crates/devine-boot",
+    "crates/devine-arch",
+    "crates/devine-arch-x86_64",
+    "crates/devine-arch-aarch64",
+    "crates/devine-perf-cpp",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "CC0-1.0"
+authors = ["Devine Contributors"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+spin = { version = "0.9", default-features = false, features = ["spin_mutex", "once"] }
+bitflags = "2.4"
+x86_64 = { version = "0.14", default-features = false, features = ["instructions", "inline_asm"] }
+
+[dev-dependencies]
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = []
+test = []
+lto = true
+opt-level = 3
+codegen-units = 1
+
+[workspace.dependencies]
+bootloader = "0.11"
+spin = "0.9"
+volatile = "0.5"
+bitflags = "2.4"
+cc = "1.0"
+cxx = "1.0"
+cxx-build = "1.0"
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "kernel"
+crate-type = ["staticlib"]
+
+[[bin]]
+name = "kernel"
+path = "src/main.rs"
+
+[dependencies]
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+codegen-units = 1
+
+[features]
+default = []
