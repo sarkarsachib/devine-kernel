@@ -14,7 +14,7 @@ pub struct CpuInfo {
     pub stepping: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct HardwareInfo {
     pub memory_regions: &'static [MemoryRegion],
     pub memory_region_count: usize,
@@ -32,7 +32,7 @@ impl HardwareInfo {
             memory_regions: &[],
             memory_region_count: 0,
             cpu_info: CpuInfo {
-                vendor: *b"          ",
+                vendor: *b"            ",
                 family: 0,
                 model: 0,
                 stepping: 0,

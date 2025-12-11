@@ -1,7 +1,7 @@
 #[cfg(not(test))]
 extern crate alloc;
 
-use alloc::{collections::VecDeque, string::String, vec::Vec};
+use alloc::{collections::VecDeque, string::{String, ToString}, vec::Vec};
 use core::{slice, str};
 
 use spin::Mutex;
@@ -13,12 +13,11 @@ use crate::process::{
     create_thread,
     scheduler,
     thread::{self, ThreadState, THREAD_TABLE},
-    FileDescriptorTable,
     ProcessId,
     ThreadId,
     Context,
 };
-use crate::process::elf_loader::{self, TargetArch};
+use crate::process::loader::{self, TargetArch};
 use crate::userspace;
 
 pub const SYS_EXIT: usize = 0;
@@ -32,6 +31,13 @@ pub const SYS_BRK: usize = 7;
 pub const SYS_CLONE: usize = 8;
 pub const SYS_WRITE: usize = 9;
 pub const SYS_READ: usize = 10;
+pub const SYS_OPEN: usize = 11;
+pub const SYS_CLOSE: usize = 12;
+pub const SYS_PIPE: usize = 13;
+pub const SYS_SIGNAL: usize = 14;
+
+pub const SYS_EXECVE: usize = SYS_EXEC;
+pub const SYS_WAITPID: usize = SYS_WAIT;
 
 #[derive(Debug)]
 pub enum SyscallError {
@@ -82,6 +88,10 @@ pub fn handle_syscall(
         SYS_CLONE => sys_clone(arg1, arg2, arg3),
         SYS_WRITE => sys_write(arg1, arg2, arg3),
         SYS_READ => sys_read(arg1, arg2, arg3),
+        SYS_OPEN => sys_open(arg1, arg2, arg3),
+        SYS_CLOSE => sys_close(arg1),
+        SYS_PIPE => sys_pipe(arg1),
+        SYS_SIGNAL => sys_signal(arg1, arg2),
         _ => Err(SyscallError::InvalidSyscall),
     }
 }
@@ -156,16 +166,9 @@ fn sys_exec(path_ptr: usize, argv_ptr: usize) -> SyscallResult {
         let process = table
             .get_process_mut(thread.process_id)
             .ok_or(SyscallError::ProcessNotFound)?;
-        let loaded = elf_loader::load_executable(
-            image,
-            arch,
-            &process.address_space,
-            &argv_refs,
-            &[],
-        )
-        .map_err(|_| SyscallError::InvalidArgument)?;
+        let loaded = loader::exec_into_process(process, image, arch, &argv_refs, &[])
+            .map_err(|_| SyscallError::InvalidArgument)?;
         process.name = path;
-        process.image = Some(loaded.clone());
         loaded
     };
 
@@ -284,6 +287,22 @@ fn sys_read(fd: usize, buf: usize, len: usize) -> SyscallResult {
         }
     }
     Ok(read)
+}
+
+fn sys_open(_path_ptr: usize, _flags: usize, _mode: usize) -> SyscallResult {
+    Err(SyscallError::InvalidSyscall)
+}
+
+fn sys_close(_fd: usize) -> SyscallResult {
+    Err(SyscallError::InvalidSyscall)
+}
+
+fn sys_pipe(_pipefd_ptr: usize) -> SyscallResult {
+    Err(SyscallError::InvalidSyscall)
+}
+
+fn sys_signal(_signum: usize, _handler: usize) -> SyscallResult {
+    Err(SyscallError::InvalidSyscall)
 }
 
 pub fn feed_stdin(bytes: &[u8]) {

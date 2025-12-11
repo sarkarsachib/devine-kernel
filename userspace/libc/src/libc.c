@@ -80,3 +80,61 @@ void kuser_entry(unsigned long *stack) {
     int ret = main(argc, argv);
     exit(ret);
 }
+
+int errno;
+
+int *__errno_location(void) {
+    return &errno;
+}
+
+void *memcpy(void *dest, const void *src, size_t n) {
+    unsigned char *d = (unsigned char *)dest;
+    const unsigned char *s = (const unsigned char *)src;
+    for (size_t i = 0; i < n; ++i) {
+        d[i] = s[i];
+    }
+    return dest;
+}
+
+void *memset(void *dest, int c, size_t n) {
+    unsigned char *d = (unsigned char *)dest;
+    for (size_t i = 0; i < n; ++i) {
+        d[i] = (unsigned char)c;
+    }
+    return dest;
+}
+
+size_t strlen(const char *s) {
+    size_t n = 0;
+    if (!s) {
+        return 0;
+    }
+    while (s[n]) {
+        ++n;
+    }
+    return n;
+}
+
+int strcmp(const char *a, const char *b) {
+    size_t i = 0;
+    while (a[i] && b[i] && a[i] == b[i]) {
+        ++i;
+    }
+    return (unsigned char)a[i] - (unsigned char)b[i];
+}
+
+int strncmp(const char *a, const char *b, size_t n) {
+    for (size_t i = 0; i < n; ++i) {
+        if (a[i] != b[i] || !a[i] || !b[i]) {
+            return (unsigned char)a[i] - (unsigned char)b[i];
+        }
+    }
+    return 0;
+}
+
+int puts(const char *s) {
+    size_t n = strlen(s);
+    write(1, s, n);
+    write(1, "\n", 1);
+    return 0;
+}
