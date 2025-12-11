@@ -2,6 +2,7 @@ pub mod scheduler;
 pub mod context;
 pub mod thread;
 pub mod elf_loader;
+pub mod loader;
 
 use spin::Mutex;
 use crate::memory::{VirtAddr, frame_allocator::Frame};
@@ -144,7 +145,7 @@ pub struct Process {
     pub children: Vec<ProcessId>,
     pub file_descriptors: FileDescriptorTable,
     pub security: SecurityContext,
-    pub image: Option<elf_loader::LoadedImage>,
+    pub image: Option<loader::LoadedImage>,
 }
 
 impl Process {
