@@ -1,0 +1,22 @@
+{
+  "llvm-target": "i686-unknown-linux-gnu",
+  "data-layout": "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128",
+  "arch": "x86",
+  "target-endian": "little",
+  "target-pointer-width": "32",
+  "target-c-int-width": "32",
+  "os": "linux",
+  "env": "gnu",
+  "vendor": "unknown",
+  "linker": "i686-linux-gnu-gcc",
+  "llvm-libunwind": "system",
+  "linker-flavor": "gcc",
+  "dynamic-linking": false,
+  "static-libgcc": true,
+  "relocation-model": "pic",
+  "disable-redzone": true,
+  "panic-strategy": "abort",
+  "disable-rpath": true,
+  "no-compiler-rt": true,
+  "features": "-mmx,-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,-avx512f,-avx512cd,-avx512er,-avx512pf"
+}

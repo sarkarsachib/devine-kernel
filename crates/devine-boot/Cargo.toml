@@ -1,0 +1,17 @@
+[package]
+name = "devine-boot"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+bootloader = { workspace = true }
+devine-kernel-core = { path = "../devine-kernel-core" }
+devine-arch-x86_64 = { path = "../devine-arch-x86_64", optional = true }
+devine-arch-aarch64 = { path = "../devine-arch-aarch64", optional = true }
+
+[features]
+default = []
+x86_64 = ["devine-arch-x86_64"]
+aarch64 = ["devine-arch-aarch64"]

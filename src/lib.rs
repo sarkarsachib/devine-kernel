@@ -24,3 +24,8 @@ mod tests {
         assert_eq!(2 + 2, 4);
     }
 }
+#![no_std]
+
+pub mod hwinfo;
+pub mod x86_64;
+pub mod arm64;
