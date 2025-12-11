@@ -77,10 +77,47 @@ exception_vectors:
 
     /* EL1 SError - Current SP_ELx */
     b exception_handler
+    .align 7
+
+    /* EL0 Synchronous - AArch64 */
+    b svc_entry
+    .align 7
+
+    /* EL0 IRQ - AArch64 */
+    b exception_handler
+    .align 7
+
+    /* EL0 FIQ - AArch64 */
+    b exception_handler
+    .align 7
+
+    /* EL0 SError - AArch64 */
+    b exception_handler
+    .align 7
+
+    /* EL0 Synchronous - AArch32 */
+    b exception_handler
+    .align 7
+
+    /* EL0 IRQ - AArch32 */
+    b exception_handler
+    .align 7
+
+    /* EL0 FIQ - AArch32 */
+    b exception_handler
+    .align 7
+
+    /* EL0 SError - AArch32 */
+    b exception_handler
 
 .section .text
 exception_handler:
     hlt
+    b exception_handler
+
+    // Placeholder for builds that don't link the Rust syscall entry stub.
+    .weak svc_entry
+svc_entry:
     b exception_handler
 
 .section .bss

@@ -38,6 +38,10 @@ typedef i64 isize;
 #define STACK_SIZE 8192
 
 // Capability definitions
+//
+// Note: CAP_READ/CAP_WRITE/etc are legacy permission-style bits used by some
+// of the C subsystems. Syscall authorization uses a separate, stable namespace
+// of capabilities in the upper bits.
 #define CAP_NONE         0x00000000
 #define CAP_READ         0x00000001
 #define CAP_WRITE        0x00000002
@@ -46,6 +50,14 @@ typedef i64 isize;
 #define CAP_DELETE       0x00000010
 #define CAP_ADMIN        0x00000020
 #define CAP_ALL          0x0000003F
+
+// Canonical syscall capability bits
+#define CAP_PROC_MANAGE  (1ULL << 16)
+#define CAP_VM_MANAGE    (1ULL << 17)
+#define CAP_CONSOLE_IO   (1ULL << 18)
+#define CAP_FS_RW        (1ULL << 19)
+#define CAP_IPC          (1ULL << 20)
+#define CAP_SYS_ADMIN    (1ULL << 63)
 
 // Error codes
 #define ERR_SUCCESS      0

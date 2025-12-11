@@ -85,9 +85,29 @@ fill_l2_table:
     or $0x20, %eax
     mov %eax, %cr4
     
-    mov $0xC0000080, %ecx
+    // Enable long mode (LME) + syscall/sysret (SCE)
+    mov $0xC0000080, %ecx        // IA32_EFER
     rdmsr
-    or $0x100, %eax
+    or $0x101, %eax              // LME|SCE
+    wrmsr
+
+    // Configure syscall entry MSRs.
+    // IA32_STAR: bits 63:48 = user CS, bits 47:32 = kernel CS.
+    mov $0xC0000081, %ecx        // IA32_STAR
+    mov $0x0, %eax
+    mov $((0x1B << 16) | 0x08), %edx
+    wrmsr
+
+    // IA32_LSTAR: 64-bit RIP of syscall entry stub.
+    mov $0xC0000082, %ecx        // IA32_LSTAR
+    mov $syscall_entry, %eax
+    mov $0x0, %edx
+    wrmsr
+
+    // IA32_FMASK: clear IF/DF on entry.
+    mov $0xC0000084, %ecx        // IA32_FMASK
+    mov $0x600, %eax
+    mov $0x0, %edx
     wrmsr
     
     mov %cr0, %eax
@@ -95,4 +115,11 @@ fill_l2_table:
     mov %eax, %cr0
     
     popa
+    ret
+
+    // Placeholder syscall entry label for legacy 32-bit builds.
+    // In the x86_64 kernel build, this symbol is provided by the Rust
+    // syscall entry stub (`src/syscall/entry.rs`).
+    .weak syscall_entry
+syscall_entry:
     ret

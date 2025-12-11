@@ -2,6 +2,14 @@
 name = "kernel"
 version = "0.1.0"
 edition = "2021"
+license = "CC0-1.0"
+publish = false
+
+# This repository contains multiple build paths (a Rust kernel core plus
+# additional C/C++ infrastructure). The Rust workspace is primarily consumed as
+# libraries and boot images; we disable auto-discovered binaries to keep
+# `cargo test` focused on the library targets.
+autobins = false
 
 [workspace]
 resolver = "2"
@@ -38,6 +46,20 @@ x86_64 = { version = "0.14", default-features = false, features = ["instructions
 
 [lib]
 name = "kernel"
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = []
+test = []
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
 crate-type = ["staticlib"]
 
 [[bin]]

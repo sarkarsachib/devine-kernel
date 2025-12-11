@@ -249,6 +249,30 @@ pub fn get_process(pid: ProcessId) -> Option<Process> {
     table.get_process(pid).cloned()
 }
 
+pub fn set_process_capabilities(pid: ProcessId, capabilities: security::CapMask) -> bool {
+    let mut table = PROCESS_TABLE.lock();
+    let process = match table.get_process_mut(pid) {
+        Some(process) => process,
+        None => return false,
+    };
+
+    process.security.capabilities = capabilities;
+    security::set_capabilities(pid.0, capabilities);
+    true
+}
+
+pub fn grant_process_capabilities(pid: ProcessId, mask: security::CapMask) -> bool {
+    let mut table = PROCESS_TABLE.lock();
+    let process = match table.get_process_mut(pid) {
+        Some(process) => process,
+        None => return false,
+    };
+
+    process.security.capabilities |= mask;
+    security::grant_capabilities(pid.0, mask);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

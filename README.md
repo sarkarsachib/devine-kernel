@@ -52,7 +52,7 @@ A foundational operating system kernel with comprehensive memory management and 
 
 ### System Calls
 
-Exposed system calls for userspace interaction:
+Exposed system calls for userspace interaction (see `docs/SYSCALLS.md` for the complete, stable ABI across x86_64 and AArch64):
 - `SYS_EXIT`: Process termination
 - `SYS_FORK`: Process creation via fork
 - `SYS_EXEC`: Program execution
