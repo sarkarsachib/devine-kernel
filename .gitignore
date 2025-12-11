@@ -71,3 +71,9 @@ Cargo.lock
 # Kernel and bootloader outputs
 /dist/
 /build/
+
+# Userspace build artifacts
+/userspace/libc/build/
+/userspace/apps/build/
+/userspace/rootfs/
+/userspace/build/

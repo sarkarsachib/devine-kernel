@@ -42,6 +42,14 @@ A foundational operating system kernel with comprehensive memory management and 
 - Round-robin within priority levels
 - CPU time tracking per thread
 
+### Userspace Environment
+
+- **ELF Loader**: `src/process/elf_loader.rs` parses ELF32/ELF64 binaries, validates headers, handles PT_LOAD segments, applies relative relocations, prepares aux vectors, and synthesizes an initial user stack.
+- **Syscall ABI**: `sys_write`, `sys_read`, `sys_clone`, and legacy syscalls were reworked to drop to user privilege, duplicate file-descriptor tables, and track zombie children for `wait(2)` semantics.
+- **Minimal libc**: `userspace/libc` provides crt0 and wrappers for the kernel syscall numbers. It builds into `libkuser.a` which is statically linked with user programs.
+- **Sample programs**: `userspace/apps` contains `init`, `shell`, `cat`, `ls`, and `stress`. They are packaged into `userspace/prebuilt/<arch>` and embedded into the kernel image via `src/userspace/mod.rs`.
+- **Root filesystem tooling**: `userspace/build.sh` builds the libc, apps, and (optionally) generates an ext2 image. See `docs/USERSPACE.md` for the complete workflow.
+
 ### System Calls
 
 Exposed system calls for userspace interaction:
@@ -54,6 +62,8 @@ Exposed system calls for userspace interaction:
 - `SYS_MUNMAP`: Memory unmapping
 - `SYS_BRK`: Heap management
 - `SYS_CLONE`: Thread creation
+- `SYS_WRITE`: Buffered console output
+- `SYS_READ`: Input from the synthetic console queue
 
 ### Architecture Support
 
