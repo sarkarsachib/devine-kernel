@@ -1,4 +1,4 @@
-use crate::process::elf_loader::TargetArch;
+use crate::process::loader::TargetArch;
 
 struct UserspaceEntry {
     path: &'static str,
