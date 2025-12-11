@@ -170,3 +170,16 @@ qemu-debug-x86_64: build-x86_64
 qemu-debug-arm64: build-arm64
     @echo "Launching ARM64 with GDB support..."
     @GDB=1 GDB_WAIT=1 ./scripts/qemu-arm64.sh
+# ext2 filesystem targets
+mkfs-ext2:
+@echo "Building mkfs.ext2 tool..."
+@gcc -o build/mkfs_ext2 examples/fs/mkfs_ext2.c -Wall -Wextra -std=c11
+@echo "Creating ext2 image..."
+@mkdir -p build
+@./build/mkfs_ext2 build/ext2.img 16
+@echo "ext2 image created at build/ext2.img"
+
+test-ext2: mkfs-ext2
+@echo "Testing ext2 filesystem..."
+@echo "  Image info:"
+@ls -lh build/ext2.img

@@ -389,6 +389,9 @@ const char* vfs_get_basename(const char* path) {
     return last_slash ? last_slash + 1 : path;
 }
 
+// Forward declaration for ext2
+extern vfs_node_t* ext2_get_vfs_root(void);
+
 // Mount a file system
 i32 vfs_mount(const char* device, const char* mount_point, const char* fstype) {
     vfs_node_t* mount_node = vfs_lookup(mount_point);
@@ -404,14 +407,24 @@ i32 vfs_mount(const char* device, const char* mount_point, const char* fstype) {
     strncpy(mp->device, device, MAX_STRING_LEN - 1);
     strncpy(mp->fstype, fstype, MAX_STRING_LEN - 1);
     mp->mount_point = mount_node;
-    mp->root = mount_node;
+    
+    // Get ext2 root if mounting ext2
+    if (strcmp(fstype, "ext2") == 0) {
+        mp->root = ext2_get_vfs_root();
+        if (mp->root) {
+            mount_node->mount_point = mp->root;
+        } else {
+            mp->root = mount_node;
+        }
+    } else {
+        mp->root = mount_node;
+    }
+    
     mp->fs_data = NULL;
     
     // Add to mount list
     mp->next = mount_points;
     mount_points = mp;
-    
-    mount_node->mount_point = mount_node; // Mark as mount point
     
     return ERR_SUCCESS;
 }
