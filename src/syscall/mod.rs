@@ -1,7 +1,7 @@
 #[cfg(not(test))]
 extern crate alloc;
 
-use alloc::{collections::VecDeque, string::String, vec::Vec};
+use alloc::{collections::VecDeque, string::{String, ToString}, vec::Vec};
 use core::{slice, str};
 
 use spin::Mutex;
@@ -22,6 +22,7 @@ use crate::process::elf_loader::{self, TargetArch};
 use crate::security::{
     CapMask, PrivilegeLevel, CAP_CONSOLE_IO, CAP_PROC_MANAGE, CAP_VM_MANAGE,
 };
+use crate::process::loader::{self, TargetArch};
 use crate::userspace;
 
 pub mod entry;
@@ -106,6 +107,13 @@ pub const SYS_BRK: usize = 7;
 pub const SYS_CLONE: usize = 8;
 pub const SYS_WRITE: usize = 9;
 pub const SYS_READ: usize = 10;
+pub const SYS_OPEN: usize = 11;
+pub const SYS_CLOSE: usize = 12;
+pub const SYS_PIPE: usize = 13;
+pub const SYS_SIGNAL: usize = 14;
+
+pub const SYS_EXECVE: usize = SYS_EXEC;
+pub const SYS_WAITPID: usize = SYS_WAIT;
 
 pub const SYS_OPEN: usize = 11;
 pub const SYS_CLOSE: usize = 12;
@@ -458,6 +466,24 @@ pub extern "C" fn syscall_handler(
     match handle_syscall(syscall_number, SyscallArgs::new(arg1, arg2, arg3, arg4, arg5, arg6)) {
         Ok(value) => value as isize,
         Err(errno) => -(errno as isize),
+) -> SyscallResult {
+    match syscall_number {
+        SYS_EXIT => sys_exit(arg1),
+        SYS_FORK => sys_fork(),
+        SYS_EXEC => sys_exec(arg1, arg2),
+        SYS_WAIT => sys_wait(arg1),
+        SYS_GETPID => sys_getpid(),
+        SYS_MMAP => sys_mmap(arg1, arg2, arg3, arg4, arg5, arg6),
+        SYS_MUNMAP => sys_munmap(arg1, arg2),
+        SYS_BRK => sys_brk(arg1),
+        SYS_CLONE => sys_clone(arg1, arg2, arg3),
+        SYS_WRITE => sys_write(arg1, arg2, arg3),
+        SYS_READ => sys_read(arg1, arg2, arg3),
+        SYS_OPEN => sys_open(arg1, arg2, arg3),
+        SYS_CLOSE => sys_close(arg1),
+        SYS_PIPE => sys_pipe(arg1),
+        SYS_SIGNAL => sys_signal(arg1, arg2),
+        _ => Err(SyscallError::InvalidSyscall),
     }
 }
 
@@ -531,8 +557,12 @@ fn sys_exec(args: SyscallArgs) -> SyscallResult {
         let process = table.get_process_mut(thread.process_id).ok_or(Errno::ESRCH)?;
         let loaded = elf_loader::load_executable(image, arch, &process.address_space, &argv_refs, &[])
             .map_err(|_| Errno::EINVAL)?;
+        let process = table
+            .get_process_mut(thread.process_id)
+            .ok_or(SyscallError::ProcessNotFound)?;
+        let loaded = loader::exec_into_process(process, image, arch, &argv_refs, &[])
+            .map_err(|_| SyscallError::InvalidArgument)?;
         process.name = path;
-        process.image = Some(loaded.clone());
         loaded
     };
 
@@ -665,6 +695,20 @@ fn sys_read(args: SyscallArgs) -> SyscallResult {
 fn sys_yield(_: SyscallArgs) -> SyscallResult {
     scheduler::yield_cpu();
     Ok(0)
+fn sys_open(_path_ptr: usize, _flags: usize, _mode: usize) -> SyscallResult {
+    Err(SyscallError::InvalidSyscall)
+}
+
+fn sys_close(_fd: usize) -> SyscallResult {
+    Err(SyscallError::InvalidSyscall)
+}
+
+fn sys_pipe(_pipefd_ptr: usize) -> SyscallResult {
+    Err(SyscallError::InvalidSyscall)
+}
+
+fn sys_signal(_signum: usize, _handler: usize) -> SyscallResult {
+    Err(SyscallError::InvalidSyscall)
 }
 
 pub fn feed_stdin(bytes: &[u8]) {

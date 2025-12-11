@@ -1,6 +1,7 @@
 #[cfg(not(test))]
 extern crate alloc;
 
+use alloc::vec;
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
@@ -56,11 +57,12 @@ pub struct AuxEntry {
     pub value: usize,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct StackImage {
     pub user_sp: VirtAddr,
     pub stack_top: VirtAddr,
     pub stack_bottom: VirtAddr,
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -614,14 +616,29 @@ fn build_stack(
     envp: &[&str],
     aux: &[AuxEntry],
 ) -> Result<StackImage, ElfLoaderError> {
+    fn write_u64(buf: &mut [u8], offset: usize, value: u64) -> Result<(), ElfLoaderError> {
+        let slice = buf
+            .get_mut(offset..offset + 8)
+            .ok_or(ElfLoaderError::StackOverflow)?;
+        slice.copy_from_slice(&value.to_le_bytes());
+        Ok(())
+    }
+
+    let argc = argv.len();
+    let envc = envp.len();
+    let ptr_size = core::mem::size_of::<u64>();
+
+    let header_words = 1 + (argc + 1) + (envc + 1) + aux.len() * 2;
+    let header_bytes = header_words * ptr_size;
+
     let strings_size: usize = argv
         .iter()
         .chain(envp.iter())
         .map(|entry| entry.as_bytes().len() + 1)
         .sum();
-    let ptr_count = argv.len() + 1 + envp.len() + 1 + aux.len() * 2 + 2;
-    let ptr_bytes = ptr_count * core::mem::size_of::<usize>();
-    let total = align_up(strings_size + ptr_bytes + core::mem::size_of::<usize>(), 16);
+
+    let strings_offset = align_up(header_bytes, 16);
+    let total = align_up(strings_offset + strings_size, 16);
 
     let top = address_space.stack_end.0 as usize;
     let bottom_limit = address_space.stack_start.0 as usize;
@@ -630,11 +647,68 @@ fn build_stack(
         return Err(ElfLoaderError::StackOverflow);
     }
 
-    let user_sp = top - total;
+    let user_sp = (top - total) & !0xF;
+    let user_sp_addr = user_sp as u64;
+
+    let argv_offset = ptr_size;
+    let envp_offset = argv_offset + (argc + 1) * ptr_size;
+    let aux_offset = envp_offset + (envc + 1) * ptr_size;
+
+    let mut data = vec![0u8; total];
+
+    write_u64(&mut data, 0, argc as u64)?;
+
+    let mut str_cursor = strings_offset;
+    for (idx, arg) in argv.iter().enumerate() {
+        let bytes = arg.as_bytes();
+        let needed = bytes.len() + 1;
+        if str_cursor + needed > data.len() {
+            return Err(ElfLoaderError::StackOverflow);
+        }
+
+        data[str_cursor..str_cursor + bytes.len()].copy_from_slice(bytes);
+        data[str_cursor + bytes.len()] = 0;
+
+        let ptr = user_sp_addr + str_cursor as u64;
+        write_u64(&mut data, argv_offset + idx * ptr_size, ptr)?;
+
+        str_cursor += needed;
+    }
+
+    write_u64(&mut data, argv_offset + argc * ptr_size, 0)?;
+
+    for (idx, env) in envp.iter().enumerate() {
+        let bytes = env.as_bytes();
+        let needed = bytes.len() + 1;
+        if str_cursor + needed > data.len() {
+            return Err(ElfLoaderError::StackOverflow);
+        }
+
+        data[str_cursor..str_cursor + bytes.len()].copy_from_slice(bytes);
+        data[str_cursor + bytes.len()] = 0;
+
+        let ptr = user_sp_addr + str_cursor as u64;
+        write_u64(&mut data, envp_offset + idx * ptr_size, ptr)?;
+
+        str_cursor += needed;
+    }
+
+    write_u64(&mut data, envp_offset + envc * ptr_size, 0)?;
+
+    for (idx, entry) in aux.iter().enumerate() {
+        write_u64(&mut data, aux_offset + idx * 2 * ptr_size, entry.key as u64)?;
+        write_u64(
+            &mut data,
+            aux_offset + (idx * 2 + 1) * ptr_size,
+            entry.value as u64,
+        )?;
+    }
+
     Ok(StackImage {
-        user_sp: VirtAddr::new(user_sp as u64 & !0xF),
+        user_sp: VirtAddr::new(user_sp_addr),
         stack_top: address_space.stack_end,
         stack_bottom: address_space.stack_start,
+        data,
     })
 }
 

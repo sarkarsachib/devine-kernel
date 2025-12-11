@@ -86,8 +86,6 @@ impl Gdt {
             asm!("mov fs, ax");
             asm!("mov gs, ax");
             asm!("mov ss, ax");
-            asm!("ljmp $0x08, $1f");
-            asm!("1:");
         }
     }
 }

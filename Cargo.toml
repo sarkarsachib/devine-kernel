@@ -28,6 +28,15 @@ edition = "2021"
 license = "CC0-1.0"
 authors = ["Devine Contributors"]
 
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+
 [dependencies]
 spin = { version = "0.9", default-features = false, features = ["spin_mutex", "once"] }
 bitflags = "2.4"
@@ -51,6 +60,11 @@ panic = "abort"
 opt-level = 3
 lto = true
 codegen-units = 1
+crate-type = ["staticlib"]
+
+[[bin]]
+name = "kernel"
+path = "src/main.rs"
 
 [workspace.dependencies]
 bootloader = "0.11"
@@ -60,3 +74,32 @@ bitflags = "2.4"
 cc = "1.0"
 cxx = "1.0"
 cxx-build = "1.0"
+
+[dependencies]
+spin = { version = "0.9", default-features = false, features = ["spin_mutex", "once"] }
+bitflags = "2.4"
+x86_64 = { version = "0.14", default-features = false, features = ["instructions", "inline_asm"] }
+
+[lib]
+name = "kernel"
+crate-type = ["rlib", "staticlib"]
+
+[[bin]]
+name = "kernel"
+path = "src/main.rs"
+
+[profile.dev]
+panic = "abort"
+opt-level = 0
+debug = true
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+debug = false
+lto = true
+codegen-units = 1
+
+[features]
+default = []
+test = []

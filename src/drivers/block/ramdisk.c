@@ -104,6 +104,9 @@ static device_ops_t ramdisk_ops = {
     .remove = ramdisk_remove,
 };
 
+// Global ramdisk instance for loading ext2 image
+static ramdisk_t* g_ramdisk = NULL;
+
 // Initialize RAM disk
 void ramdisk_init(void) {
     ramdisk_t* disk = (ramdisk_t*)malloc(sizeof(ramdisk_t));
@@ -112,7 +115,7 @@ void ramdisk_init(void) {
         return;
     }
     
-    disk->size = 1024 * 1024; // 1MB
+    disk->size = 16 * 1024 * 1024; // 16MB to match ext2 image size
     disk->block_size = 512;
     disk->data = (u8*)malloc(disk->size);
     
@@ -125,9 +128,32 @@ void ramdisk_init(void) {
     // Clear the disk
     memset(disk->data, 0, disk->size);
     
+    g_ramdisk = disk;
+    
     // Register the device
     i32 major = device_register("ramdisk", DEVICE_BLOCK, &ramdisk_ops, disk);
     console_print("RAM disk initialized (major=");
     console_print_dec(major);
     console_print(")\n");
+}
+
+// Load ext2 image into ramdisk
+void ramdisk_load_ext2_image(void* image_data, u64 image_size) {
+    if (!g_ramdisk || !image_data || image_size == 0) {
+        console_print("ramdisk_load_ext2_image: invalid parameters\n");
+        return;
+    }
+    
+    if (image_size > g_ramdisk->size) {
+        console_print("ramdisk_load_ext2_image: image too large\n");
+        return;
+    }
+    
+    console_print("Loading ext2 image into ramdisk (");
+    console_print_dec(image_size);
+    console_print(" bytes)... ");
+    
+    memcpy(g_ramdisk->data, image_data, image_size);
+    
+    console_print("OK\n");
 }
