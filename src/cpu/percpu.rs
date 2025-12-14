@@ -121,11 +121,9 @@ pub fn register_cpu(info: CpuInfo, kernel_stack: u64, stack_size: u64) -> u32 {
     }
 }
 
-pub fn get_cpu_manager() -> Option<&'static Spinlock<CpuManager>> {
+pub fn get_cpu_manager() -> Option<&'static CpuManager> {
     unsafe {
-        CPU_MANAGER.as_ref().map(|_| {
-            &*((&CPU_MANAGER as *const Option<CpuManager>) as *const Spinlock<CpuManager>)
-        })
+        CPU_MANAGER.as_ref()
     }
 }
 

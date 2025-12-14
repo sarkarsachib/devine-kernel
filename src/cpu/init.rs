@@ -126,7 +126,7 @@ fn enumerate_cpus_arm64() {
 
 #[cfg(target_arch = "aarch64")]
 fn boot_aps_arm64() {
-    use crate::arm64::ap_boot;
+    use crate::arch::arm64::ap_boot;
     
     // Use PSCI to bring up APs
     let entry_point = 0xFFFF800000000000u64;  // Kernel entry point

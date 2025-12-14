@@ -2,19 +2,12 @@
 #![no_main]
 
 extern crate core;
-
-mod hwinfo;
-mod x86_64;
-mod arm64;
+extern crate kernel;
 
 use core::panic::PanicInfo;
+use kernel::hwinfo;
 
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {
-        hlt_loop();
-    }
-}
+// Panic handler is in kernel library
 
 #[inline]
 fn hlt_loop() -> ! {
@@ -41,6 +34,16 @@ pub extern "C" fn kmain(hw_info: *const hwinfo::HardwareInfo) -> ! {
     };
 
     // Initialize the system
+    kernel::drivers::serial::SERIAL1.lock().init();
+
+    let msg = b"Kernel: Serial Initialized.\n";
+    {
+        let mut serial = kernel::drivers::serial::SERIAL1.lock();
+        for &b in msg {
+            serial.send(b);
+        }
+    }
+
     // TODO: Initialize drivers, filesystem, etc.
 
     hlt_loop()

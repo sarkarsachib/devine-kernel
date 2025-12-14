@@ -10,6 +10,7 @@ use core::arch::global_asm;
 #[cfg(target_arch = "x86_64")]
 global_asm!(r#"
     .section .text
+    .att_syntax
     .global syscall_entry
     .type syscall_entry, @function
 

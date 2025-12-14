@@ -25,9 +25,12 @@ pub fn cpuid(leaf: u32, subleaf: u32) -> CpuidResult {
     
     unsafe {
         asm!(
+            "push rbx",
             "cpuid",
+            "mov {0:e}, ebx",
+            "pop rbx",
+            out(reg) ebx,
             inlateout("eax") eax,
-            out("ebx") ebx,
             inlateout("ecx") ecx,
             out("edx") edx,
             options(nomem, nostack, preserves_flags)
