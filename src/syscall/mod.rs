@@ -466,24 +466,6 @@ pub extern "C" fn syscall_handler(
     match handle_syscall(syscall_number, SyscallArgs::new(arg1, arg2, arg3, arg4, arg5, arg6)) {
         Ok(value) => value as isize,
         Err(errno) => -(errno as isize),
-) -> SyscallResult {
-    match syscall_number {
-        SYS_EXIT => sys_exit(arg1),
-        SYS_FORK => sys_fork(),
-        SYS_EXEC => sys_exec(arg1, arg2),
-        SYS_WAIT => sys_wait(arg1),
-        SYS_GETPID => sys_getpid(),
-        SYS_MMAP => sys_mmap(arg1, arg2, arg3, arg4, arg5, arg6),
-        SYS_MUNMAP => sys_munmap(arg1, arg2),
-        SYS_BRK => sys_brk(arg1),
-        SYS_CLONE => sys_clone(arg1, arg2, arg3),
-        SYS_WRITE => sys_write(arg1, arg2, arg3),
-        SYS_READ => sys_read(arg1, arg2, arg3),
-        SYS_OPEN => sys_open(arg1, arg2, arg3),
-        SYS_CLOSE => sys_close(arg1),
-        SYS_PIPE => sys_pipe(arg1),
-        SYS_SIGNAL => sys_signal(arg1, arg2),
-        _ => Err(SyscallError::InvalidSyscall),
     }
 }
 
@@ -695,6 +677,8 @@ fn sys_read(args: SyscallArgs) -> SyscallResult {
 fn sys_yield(_: SyscallArgs) -> SyscallResult {
     scheduler::yield_cpu();
     Ok(0)
+}
+
 fn sys_open(_path_ptr: usize, _flags: usize, _mode: usize) -> SyscallResult {
     Err(SyscallError::InvalidSyscall)
 }
