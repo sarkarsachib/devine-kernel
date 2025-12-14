@@ -72,17 +72,8 @@ impl PerCpuRunQueue {
 
 impl MultiCpuScheduler {
     pub fn new() -> Self {
-        // Create a default PerCpuRunQueue and spinlock
-        let default_queue = Spinlock::new(PerCpuRunQueue::new(0));
-        let mut run_queues: [Spinlock<PerCpuRunQueue>; MAX_CPUS] = 
-            [default_queue; MAX_CPUS];
-        
-        // Now update each queue with the correct CPU ID
-        for i in 0..MAX_CPUS {
-            // We need to recreate each spinlock with the correct CPU ID
-            let queue = PerCpuRunQueue::new(i as u32);
-            run_queues[i] = Spinlock::new(queue);
-        }
+        let run_queues: [Spinlock<PerCpuRunQueue>; MAX_CPUS] = 
+            core::array::from_fn(|i| Spinlock::new(PerCpuRunQueue::new(i as u32)));
         
         const NONE_TASK: Option<u64> = None;
         MultiCpuScheduler {

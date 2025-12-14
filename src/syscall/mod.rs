@@ -23,6 +23,7 @@ use crate::security::{
 };
 use crate::process::loader;
 use crate::userspace;
+use crate::drivers::serial::SERIAL1;
 
 pub mod entry;
 
@@ -34,6 +35,7 @@ pub enum Errno {
     ENOMEM = 12,
     EINVAL = 22,
     ENOSYS = 38,
+    InvalidSyscall = 39,
 }
 
 pub type SyscallResult = Result<usize, Errno>;
@@ -538,9 +540,9 @@ fn sys_exec(args: SyscallArgs) -> SyscallResult {
             .map_err(|_| Errno::EINVAL)?;
         let process = table
             .get_process_mut(thread.process_id)
-            .ok_or(SyscallError::ProcessNotFound)?;
+            .ok_or(Errno::ESRCH)?;
         let loaded = loader::exec_into_process(process, image, arch, &argv_refs, &[])
-            .map_err(|_| SyscallError::InvalidArgument)?;
+            .map_err(|_| Errno::EINVAL)?;
         process.name = path;
         loaded
     };
@@ -635,6 +637,13 @@ fn sys_write(args: SyscallArgs) -> SyscallResult {
     match fd {
         1 | 2 => {
             USER_STDOUT.lock().extend_from_slice(data);
+            
+            // Also write to serial port
+            let mut serial = SERIAL1.lock();
+            for &byte in data {
+                serial.send(byte);
+            }
+            
             Ok(len)
         }
         0 => Err(Errno::EPERM),
@@ -656,6 +665,22 @@ fn sys_read(args: SyscallArgs) -> SyscallResult {
     }
 
     let mut stdin = USER_STDIN.lock();
+
+    // If buffer is empty, block until we get data from serial
+    if stdin.is_empty() {
+        drop(stdin);
+        loop {
+            // Check serial port
+            if let Some(byte) = SERIAL1.lock().try_receive() {
+                USER_STDIN.lock().push_back(byte);
+                break;
+            }
+            // Yield CPU while waiting
+            scheduler::yield_cpu();
+        }
+        stdin = USER_STDIN.lock();
+    }
+
     let mut read = 0;
     while read < len {
         match stdin.pop_front() {
