@@ -533,14 +533,15 @@ fn sys_exec(args: SyscallArgs) -> SyscallResult {
 
     let loaded = {
         let mut table = process::PROCESS_TABLE.lock();
+        let env_refs: &[&str] = &["TERM=vt100", "COLORTERM=truecolor"];
         let process = table.get_process_mut(thread.process_id).ok_or(Errno::ESRCH)?;
-        let loaded = elf_loader::load_executable(image, arch, &process.address_space, &argv_refs, &[])
+        let _loaded_check = elf_loader::load_executable(image, arch, &process.address_space, &argv_refs, env_refs)
             .map_err(|_| Errno::EINVAL)?;
         let process = table
             .get_process_mut(thread.process_id)
-            .ok_or(SyscallError::ProcessNotFound)?;
-        let loaded = loader::exec_into_process(process, image, arch, &argv_refs, &[])
-            .map_err(|_| SyscallError::InvalidArgument)?;
+            .ok_or(Errno::ESRCH)?;
+        let loaded = loader::exec_into_process(process, image, arch, &argv_refs, env_refs)
+            .map_err(|_| Errno::EINVAL)?;
         process.name = path;
         loaded
     };
