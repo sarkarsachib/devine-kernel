@@ -1,8 +1,9 @@
-#[cfg(not(test))]
-extern crate alloc;
-
-use alloc::{collections::VecDeque, string::{String, ToString}, vec::Vec};
 use core::{slice, str};
+
+#[cfg(not(test))]
+use alloc::{collections::VecDeque, string::String, vec::Vec};
+#[cfg(test)]
+use std::{collections::VecDeque, string::String, vec::Vec};
 
 use spin::Mutex;
 
@@ -14,10 +15,12 @@ use crate::process::{
     scheduler,
     thread::{self, ThreadState, THREAD_TABLE},
     Context,
+    FdObject,
+    PipeEnd,
     ProcessId,
     ThreadId,
 };
-use crate::process::elf_loader::{self, TargetArch};
+use crate::process::loader::{self, TargetArch};
 use crate::security::{
     CapMask, PrivilegeLevel, CAP_CONSOLE_IO, CAP_PROC_MANAGE, CAP_VM_MANAGE,
 };
@@ -33,6 +36,7 @@ pub enum Errno {
     ESRCH = 3,
     ENOMEM = 12,
     EINVAL = 22,
+    EBADF = 9,
     ENOSYS = 38,
     ProcessNotFound = 100,
     InvalidArgument = 101,
@@ -94,6 +98,8 @@ const fn arg_spec(
     [a1, a2, a3, a4, a5, a6]
 }
 
+const CAP_NONE: CapMask = 0;
+
 fn sys_unimplemented(_: SyscallArgs) -> SyscallResult {
     Err(Errno::ENOSYS)
 }
@@ -123,6 +129,20 @@ pub const SYS_SHM_MAP: usize = 21;
 pub const SYS_SYSFS_READ: usize = 22;
 pub const SYS_SYSFS_WRITE: usize = 23;
 pub const SYS_DEBUG_LOG: usize = 24;
+
+pub const SYS_EXECVE: usize = SYS_EXEC;
+pub const SYS_WAITPID: usize = SYS_WAIT;
+pub const SYS_IOCTL: usize = 13;
+pub const SYS_YIELD: usize = 14;
+pub const SYS_NANOSLEEP: usize = 15;
+pub const SYS_IPC_SEND: usize = 16;
+pub const SYS_IPC_RECV: usize = 17;
+pub const SYS_SHM_CREATE: usize = 18;
+pub const SYS_SHM_MAP: usize = 19;
+pub const SYS_SYSFS_READ: usize = 20;
+pub const SYS_SYSFS_WRITE: usize = 21;
+pub const SYS_DEBUG_LOG: usize = 22;
+pub const SYS_DUP2: usize = 23;
 
 pub const SYSCALL_MAX: usize = 32;
 
@@ -157,7 +177,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         handler: sys_wait,
         max_caller_ring: PrivilegeLevel::Ring3,
         required_capabilities: CAP_PROC_MANAGE,
-        args: arg_spec(SyscallArgKind::Usize, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
+        args: arg_spec(SyscallArgKind::Usize, SyscallArgKind::Ptr, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
         number: SYS_GETPID,
@@ -220,24 +240,27 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "open",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::CStringPtr, SyscallArgKind::Flags, SyscallArgKind::Flags, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
         number: SYS_CLOSE,
         name: "close",
-        handler: sys_unimplemented,
+        handler: sys_close,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_CONSOLE_IO,
         args: arg_spec(SyscallArgKind::Fd, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
         number: SYS_IOCTL,
         name: "ioctl",
         handler: sys_ioctl,
+        number: SYS_PIPE,
+        name: "pipe",
+        handler: sys_pipe,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
-        args: arg_spec(SyscallArgKind::Fd, SyscallArgKind::Usize, SyscallArgKind::Ptr, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
+        required_capabilities: CAP_CONSOLE_IO,
+        args: arg_spec(SyscallArgKind::Ptr, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
         number: SYS_YIELD,
@@ -260,7 +283,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "ipc_send",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::Usize, SyscallArgKind::Ptr, SyscallArgKind::Len, SyscallArgKind::Flags, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -268,7 +291,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "ipc_recv",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::Usize, SyscallArgKind::Ptr, SyscallArgKind::Len, SyscallArgKind::Flags, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -276,7 +299,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "shm_create",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::Usize, SyscallArgKind::Len, SyscallArgKind::Flags, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -284,7 +307,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "shm_map",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::Usize, SyscallArgKind::Ptr, SyscallArgKind::Len, SyscallArgKind::Flags, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -292,7 +315,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "sysfs_read",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::CStringPtr, SyscallArgKind::Ptr, SyscallArgKind::Len, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -300,7 +323,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "sysfs_write",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::CStringPtr, SyscallArgKind::Ptr, SyscallArgKind::Len, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -308,23 +331,24 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "debug_log",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring0,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::Ptr, SyscallArgKind::Len, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
-        number: 23,
-        name: "reserved23",
-        handler: sys_unimplemented,
+        number: SYS_DUP2,
+        name: "dup2",
+        handler: sys_dup2,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
-        args: arg_spec(SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
+        required_capabilities: CAP_CONSOLE_IO,
+        args: arg_spec(SyscallArgKind::Fd, SyscallArgKind::Fd, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
+    // 24..31 reserved
     SyscallDescriptor {
         number: 24,
         name: "reserved24",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -332,7 +356,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "reserved25",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -340,7 +364,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "reserved26",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -348,7 +372,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "reserved27",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -356,7 +380,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "reserved28",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -364,7 +388,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "reserved29",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -372,7 +396,7 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "reserved30",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
@@ -380,12 +404,10 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         name: "reserved31",
         handler: sys_unimplemented,
         max_caller_ring: PrivilegeLevel::Ring3,
-        required_capabilities: 0,
+        required_capabilities: CAP_NONE,
         args: arg_spec(SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
 ];
-
-const CAP_NONE: CapMask = 0;
 
 struct ZombieChild {
     parent: ProcessId,
@@ -412,6 +434,11 @@ fn current_thread_snapshot() -> Result<(ThreadId, thread::Thread), Errno> {
     let tid = scheduler::current_thread().ok_or(Errno::ESRCH)?;
     let thread = thread::get_thread(tid).ok_or(Errno::ESRCH)?;
     Ok((tid, thread))
+}
+
+fn current_process_id() -> Result<ProcessId, Errno> {
+    let (_, thread) = current_thread_snapshot()?;
+    Ok(thread.process_id)
 }
 
 fn current_arch() -> TargetArch {
@@ -533,15 +560,7 @@ fn sys_exec(args: SyscallArgs) -> SyscallResult {
     let loaded = {
         let mut table = process::PROCESS_TABLE.lock();
         let process = table.get_process_mut(thread.process_id).ok_or(Errno::ESRCH)?;
-        let loaded = elf_loader::load_executable(image, arch, &process.address_space, &argv_refs, &[])
-            .map_err(|_| Errno::EINVAL)?;
-        let process = table
-            .get_process_mut(thread.process_id)
-            .ok_or(SyscallError::ProcessNotFound)?;
-        let loaded = loader::exec_into_process(process, image, arch, &argv_refs, &[])
-            .map_err(|_| SyscallError::InvalidArgument)?;
-        process.name = path;
-        loaded
+        loader::exec_into_process(process, image, arch, &argv_refs, &[]).map_err(|_| Errno::EINVAL)?
     };
 
     let mut threads = THREAD_TABLE.lock();
@@ -555,13 +574,21 @@ fn sys_exec(args: SyscallArgs) -> SyscallResult {
 
 fn sys_wait(args: SyscallArgs) -> SyscallResult {
     let (tid, thread) = current_thread_snapshot()?;
-    if let Some(zombie) = take_zombie(thread.process_id, args.a1) {
-        return Ok(zombie.child.0);
-    }
+    let status_ptr = args.a2 as *mut i32;
 
-    register_waiter(thread.process_id, tid, args.a1);
-    scheduler::block_current_thread();
-    Ok(0)
+    loop {
+        if let Some(zombie) = take_zombie(thread.process_id, args.a1) {
+            if !status_ptr.is_null() {
+                unsafe {
+                    status_ptr.write(zombie.status as i32);
+                }
+            }
+            return Ok(zombie.child.0);
+        }
+
+        register_waiter(thread.process_id, tid, args.a1);
+        scheduler::block_current_thread();
+    }
 }
 
 fn sys_getpid(_: SyscallArgs) -> SyscallResult {
@@ -622,7 +649,7 @@ fn sys_clone(args: SyscallArgs) -> SyscallResult {
 }
 
 fn sys_write(args: SyscallArgs) -> SyscallResult {
-    let fd = args.a1;
+    let fd = args.a1 as u32;
     let buf = args.a2;
     let len = args.a3;
 
@@ -630,46 +657,82 @@ fn sys_write(args: SyscallArgs) -> SyscallResult {
         return Ok(0);
     }
 
+    let pid = current_process_id()?;
+    let mut table = process::PROCESS_TABLE.lock();
+    let process = table.get_process_mut(pid).ok_or(Errno::ESRCH)?;
+    let entry = process.file_descriptors.get(fd).ok_or(Errno::EBADF)?;
+
     let data = unsafe { slice::from_raw_parts(buf as *const u8, len) };
-    match fd {
-        1 | 2 => {
+
+    match &entry.object {
+        FdObject::Stdout | FdObject::Stderr => {
             USER_STDOUT.lock().extend_from_slice(data);
             Ok(len)
         }
-        0 => Err(Errno::EPERM),
-        _ => Err(Errno::EINVAL),
+        FdObject::Pipe(end) => {
+            if end.kind() != crate::process::PipeEndKind::Write {
+                return Err(Errno::EBADF);
+            }
+            Ok(end.write(data))
+        }
+        _ => Err(Errno::EPERM),
     }
 }
 
 fn sys_read(args: SyscallArgs) -> SyscallResult {
-    let fd = args.a1;
+    let fd = args.a1 as u32;
     let buf = args.a2;
     let len = args.a3;
-
-    if fd != 0 {
-        return Err(Errno::EINVAL);
-    }
 
     if len == 0 {
         return Ok(0);
     }
 
-    let mut stdin = USER_STDIN.lock();
-    let mut read = 0;
-    while read < len {
-        match stdin.pop_front() {
-            Some(byte) => {
-                unsafe {
-                    ((buf as *mut u8).add(read)).write(byte);
+    let pid = current_process_id()?;
+    let mut table = process::PROCESS_TABLE.lock();
+    let process = table.get_process_mut(pid).ok_or(Errno::ESRCH)?;
+    let entry = process.file_descriptors.get(fd).ok_or(Errno::EBADF)?;
+
+    match &entry.object {
+        FdObject::Stdin => {
+            let mut stdin = USER_STDIN.lock();
+            let mut read = 0;
+            while read < len {
+                match stdin.pop_front() {
+                    Some(byte) => {
+                        unsafe {
+                            ((buf as *mut u8).add(read)).write(byte);
+                        }
+                        read += 1;
+                    }
+                    None => break,
                 }
-                read += 1;
             }
-            None => break,
+            Ok(read)
         }
+        FdObject::Pipe(end) => {
+            if end.kind() != crate::process::PipeEndKind::Read {
+                return Err(Errno::EBADF);
+            }
+            let out = unsafe { slice::from_raw_parts_mut(buf as *mut u8, len) };
+            Ok(end.read(out))
+        }
+        _ => Err(Errno::EINVAL),
     }
-    Ok(read)
 }
 
+fn sys_close(args: SyscallArgs) -> SyscallResult {
+    let fd = args.a1 as u32;
+    let pid = current_process_id()?;
+
+    let mut table = process::PROCESS_TABLE.lock();
+    let process = table.get_process_mut(pid).ok_or(Errno::ESRCH)?;
+
+    if process.file_descriptors.remove(fd) {
+        Ok(0)
+    } else {
+        Err(Errno::EBADF)
+    }
 fn sys_yield(_: SyscallArgs) -> SyscallResult {
     scheduler::yield_cpu();
     Ok(0)
@@ -703,16 +766,58 @@ fn sys_open(_path_ptr: usize, _flags: usize, _mode: usize) -> SyscallResult {
     Err(SyscallError::InvalidSyscall)
 }
 
-fn sys_close(_fd: usize) -> SyscallResult {
-    Err(SyscallError::InvalidSyscall)
+fn sys_pipe(args: SyscallArgs) -> SyscallResult {
+    let pipefd_ptr = args.a1 as *mut u32;
+    if pipefd_ptr.is_null() {
+        return Err(Errno::EINVAL);
+    }
+
+    let pid = current_process_id()?;
+    let (read_end, write_end) = PipeEnd::new_pair();
+
+    let mut table = process::PROCESS_TABLE.lock();
+    let process = table.get_process_mut(pid).ok_or(Errno::ESRCH)?;
+
+    let read_fd = process
+        .file_descriptors
+        .allocate(0, true, FdObject::Pipe(read_end));
+    let write_fd = process
+        .file_descriptors
+        .allocate(0, true, FdObject::Pipe(write_end));
+
+    unsafe {
+        pipefd_ptr.add(0).write(read_fd);
+        pipefd_ptr.add(1).write(write_fd);
+    }
+
+    Ok(0)
 }
 
-fn sys_pipe(_pipefd_ptr: usize) -> SyscallResult {
-    Err(SyscallError::InvalidSyscall)
+fn sys_dup2(args: SyscallArgs) -> SyscallResult {
+    let oldfd = args.a1 as u32;
+    let newfd = args.a2 as u32;
+
+    let pid = current_process_id()?;
+
+    let mut table = process::PROCESS_TABLE.lock();
+    let process = table.get_process_mut(pid).ok_or(Errno::ESRCH)?;
+
+    let entry = process.file_descriptors.get(oldfd).ok_or(Errno::EBADF)?;
+    let object = entry.object.clone();
+    let flags = entry.flags;
+    let inheritable = entry.inheritable;
+
+    let _ = process.file_descriptors.remove(newfd);
+    process
+        .file_descriptors
+        .insert(newfd, flags, inheritable, object);
+
+    Ok(newfd as usize)
 }
 
-fn sys_signal(_signum: usize, _handler: usize) -> SyscallResult {
-    Err(SyscallError::InvalidSyscall)
+fn sys_yield(_: SyscallArgs) -> SyscallResult {
+    scheduler::yield_cpu();
+    Ok(0)
 }
 
 pub fn feed_stdin(bytes: &[u8]) {
@@ -854,7 +959,7 @@ fn finalize_thread(tid: ThreadId, thread: thread::Thread, exit_code: usize) {
 mod tests {
     use super::*;
     use crate::memory::{frame_allocator::Frame, PhysAddr, VirtAddr};
-    use crate::process::{scheduler::SCHEDULER, thread::ThreadTable, ProcessTable};
+    use crate::process::{scheduler::SCHEDULER, thread::ThreadTable, FileDescriptorTable, ProcessTable};
     use crate::security::{SecurityContext, CAP_CONSOLE_IO};
 
     fn reset_state() {
@@ -872,13 +977,7 @@ mod tests {
         let frame = Frame {
             start_address: PhysAddr::new(0x1000),
         };
-        let pid = create_process(
-            "test".into(),
-            frame,
-            security,
-            FileDescriptorTable::new(),
-        )
-        .unwrap();
+        let pid = create_process("test".into(), frame, security, FileDescriptorTable::new()).unwrap();
 
         let tid = create_thread(
             pid,
@@ -911,11 +1010,9 @@ mod tests {
         let security = SecurityContext::as_user(1000);
         let (pid, _tid) = create_minimal_process_with_thread(security);
 
-        // getpid requires no caps
         let ok = syscall_handler(SYS_GETPID, 0, 0, 0, 0, 0, 0);
         assert_eq!(ok, pid.0 as isize);
 
-        // write requires CAP_CONSOLE_IO
         let denied = syscall_handler(SYS_WRITE, 1, 0, 0, 0, 0, 0);
         assert_eq!(denied, -(Errno::EPERM as isize));
 

@@ -44,11 +44,131 @@ impl Priority {
     }
 }
 
+#[cfg(not(test))]
+use alloc::{collections::VecDeque, sync::Arc};
+#[cfg(test)]
+use std::{collections::VecDeque, sync::Arc};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PipeEndKind {
+    Read,
+    Write,
+}
+
+#[derive(Debug)]
+pub struct PipeInner {
+    buffer: VecDeque<u8>,
+    readers: usize,
+    writers: usize,
+}
+
+#[derive(Debug)]
+pub struct PipeEnd {
+    inner: Arc<Mutex<PipeInner>>,
+    kind: PipeEndKind,
+}
+
+impl PipeEnd {
+    pub fn new_pair() -> (Self, Self) {
+        let inner = Arc::new(Mutex::new(PipeInner {
+            buffer: VecDeque::new(),
+            readers: 1,
+            writers: 1,
+        }));
+
+        let read_end = PipeEnd {
+            inner: Arc::clone(&inner),
+            kind: PipeEndKind::Read,
+        };
+
+        let write_end = PipeEnd {
+            inner,
+            kind: PipeEndKind::Write,
+        };
+
+        (read_end, write_end)
+    }
+
+    pub fn kind(&self) -> PipeEndKind {
+        self.kind
+    }
+
+    pub fn read(&self, dst: &mut [u8]) -> usize {
+        if self.kind != PipeEndKind::Read {
+            return 0;
+        }
+
+        let mut inner = self.inner.lock();
+        let mut read = 0usize;
+        while read < dst.len() {
+            match inner.buffer.pop_front() {
+                Some(byte) => {
+                    dst[read] = byte;
+                    read += 1;
+                }
+                None => break,
+            }
+        }
+        read
+    }
+
+    pub fn write(&self, src: &[u8]) -> usize {
+        if self.kind != PipeEndKind::Write {
+            return 0;
+        }
+
+        let mut inner = self.inner.lock();
+        const PIPE_CAPACITY: usize = 4096;
+        let mut written = 0usize;
+        while written < src.len() && inner.buffer.len() < PIPE_CAPACITY {
+            inner.buffer.push_back(src[written]);
+            written += 1;
+        }
+        written
+    }
+}
+
+impl Clone for PipeEnd {
+    fn clone(&self) -> Self {
+        {
+            let mut inner = self.inner.lock();
+            match self.kind {
+                PipeEndKind::Read => inner.readers += 1,
+                PipeEndKind::Write => inner.writers += 1,
+            }
+        }
+
+        PipeEnd {
+            inner: Arc::clone(&self.inner),
+            kind: self.kind,
+        }
+    }
+}
+
+impl Drop for PipeEnd {
+    fn drop(&mut self) {
+        let mut inner = self.inner.lock();
+        match self.kind {
+            PipeEndKind::Read => inner.readers = inner.readers.saturating_sub(1),
+            PipeEndKind::Write => inner.writers = inner.writers.saturating_sub(1),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum FdObject {
+    Stdin,
+    Stdout,
+    Stderr,
+    Pipe(PipeEnd),
+}
+
 #[derive(Debug, Clone)]
 pub struct FileDescriptorEntry {
     pub fd: u32,
     pub flags: u32,
     pub inheritable: bool,
+    pub object: FdObject,
 }
 
 #[derive(Debug, Clone)]
@@ -69,24 +189,57 @@ impl FileDescriptorTable {
             .filter(|entry| entry.inheritable)
             .cloned()
             .collect();
-        Self {
-            entries,
-            next_fd: self.next_fd,
-        }
+
+        let next_fd = entries
+            .iter()
+            .fold(0u32, |max_fd, entry| max_fd.max(entry.fd + 1));
+
+        Self { entries, next_fd }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &FileDescriptorEntry> {
         self.entries.iter()
     }
 
-    pub fn insert(&mut self, fd: u32, flags: u32, inheritable: bool) {
+    pub fn get(&self, fd: u32) -> Option<&FileDescriptorEntry> {
+        self.entries.iter().find(|entry| entry.fd == fd)
+    }
+
+    pub fn remove(&mut self, fd: u32) -> bool {
+        if let Some(index) = self.entries.iter().position(|entry| entry.fd == fd) {
+            self.entries.remove(index);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn insert(&mut self, fd: u32, flags: u32, inheritable: bool, object: FdObject) {
         self.next_fd = self.next_fd.max(fd + 1);
         if let Some(existing) = self.entries.iter_mut().find(|entry| entry.fd == fd) {
             existing.flags = flags;
             existing.inheritable = inheritable;
+            existing.object = object;
         } else {
-            self.entries.push(FileDescriptorEntry { fd, flags, inheritable });
+            self.entries.push(FileDescriptorEntry {
+                fd,
+                flags,
+                inheritable,
+                object,
+            });
         }
+    }
+
+    pub fn allocate(&mut self, flags: u32, inheritable: bool, object: FdObject) -> u32 {
+        let fd = self.next_fd;
+        self.next_fd = self.next_fd.saturating_add(1);
+        self.entries.push(FileDescriptorEntry {
+            fd,
+            flags,
+            inheritable,
+            object,
+        });
+        fd
     }
 }
 
@@ -96,9 +249,9 @@ impl Default for FileDescriptorTable {
             entries: Vec::new(),
             next_fd: 0,
         };
-        table.insert(0, 0, true);
-        table.insert(1, 0, true);
-        table.insert(2, 0, true);
+        table.insert(0, 0, true, FdObject::Stdin);
+        table.insert(1, 0, true, FdObject::Stdout);
+        table.insert(2, 0, true, FdObject::Stderr);
         table
     }
 }
