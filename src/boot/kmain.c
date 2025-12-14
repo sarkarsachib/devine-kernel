@@ -8,6 +8,7 @@ extern void pci_init(void);
 extern void dt_init(void* dtb_addr);
 extern void uart16550_init(void);
 extern void pl011_init(void* dt_dev);
+extern void tty_init(void);
 
 // System time - moved to utils.c
 // u64 system_time = 0;
@@ -38,17 +39,21 @@ void kmain(void) {
     console_print("\n=== Device Initialization ===\n");
     device_init();
     
+    // Initialize TTY core subsystem
+    console_print("\n=== TTY Subsystem Initialization ===\n");
+    tty_init();
+    
 #ifdef __x86_64__
     // Initialize PCI bus for x86_64
     pci_init();
     
-    // Initialize UART for console
+    // Initialize UART for console (now with TTY support)
     uart16550_init();
 #elif __aarch64__
     // Initialize Device Tree for ARM64
     dt_init(NULL);
     
-    // Initialize PL011 UART for console
+    // Initialize PL011 UART for console (now with TTY support)
     pl011_init(NULL);
 #endif
     

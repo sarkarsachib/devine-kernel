@@ -38,6 +38,8 @@ pub enum Errno {
     EINVAL = 22,
     EBADF = 9,
     ENOSYS = 38,
+    ProcessNotFound = 100,
+    InvalidArgument = 101,
 }
 
 pub type SyscallResult = Result<usize, Errno>;
@@ -117,6 +119,16 @@ pub const SYS_OPEN: usize = 11;
 pub const SYS_CLOSE: usize = 12;
 pub const SYS_PIPE: usize = 13;
 pub const SYS_SIGNAL: usize = 14;
+pub const SYS_IOCTL: usize = 15;
+pub const SYS_YIELD: usize = 16;
+pub const SYS_NANOSLEEP: usize = 17;
+pub const SYS_IPC_SEND: usize = 18;
+pub const SYS_IPC_RECV: usize = 19;
+pub const SYS_SHM_CREATE: usize = 20;
+pub const SYS_SHM_MAP: usize = 21;
+pub const SYS_SYSFS_READ: usize = 22;
+pub const SYS_SYSFS_WRITE: usize = 23;
+pub const SYS_DEBUG_LOG: usize = 24;
 
 pub const SYS_EXECVE: usize = SYS_EXEC;
 pub const SYS_WAITPID: usize = SYS_WAIT;
@@ -240,6 +252,9 @@ pub static SYSCALL_TABLE: [SyscallDescriptor; SYSCALL_MAX] = [
         args: arg_spec(SyscallArgKind::Fd, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None, SyscallArgKind::None),
     },
     SyscallDescriptor {
+        number: SYS_IOCTL,
+        name: "ioctl",
+        handler: sys_ioctl,
         number: SYS_PIPE,
         name: "pipe",
         handler: sys_pipe,
@@ -721,6 +736,30 @@ fn sys_close(args: SyscallArgs) -> SyscallResult {
 fn sys_yield(_: SyscallArgs) -> SyscallResult {
     scheduler::yield_cpu();
     Ok(0)
+}
+
+fn sys_ioctl(args: SyscallArgs) -> SyscallResult {
+    let fd = args.a1;
+    let cmd = args.a2;
+    let arg = args.a3;
+
+    // For now, implement basic TTY ioctl operations
+    // This would need integration with the file descriptor system
+    // and TTY subsystem
+    
+    // Parse common TTY ioctls
+    match cmd as u32 {
+        // termios ioctls - these would be forwarded to the TTY subsystem
+        0x5401..=0x5414 => {  // TCGETS through TIOCSSOFTCAR range
+            // Placeholder implementation - would forward to TTY subsystem
+            Ok(0)
+        },
+        
+        // Unknown ioctl
+        _ => {
+            Err(Errno::EINVAL)
+        }
+    }
 }
 
 fn sys_open(_path_ptr: usize, _flags: usize, _mode: usize) -> SyscallResult {

@@ -42,7 +42,7 @@ pub struct CpuManager {
     current_cpu: usize,
 }
 
-static mut CPU_MANAGER: Option<CpuManager> = None;
+pub static mut CPU_MANAGER: Option<CpuManager> = None;
 
 impl CpuManager {
     pub fn new() -> Self {
