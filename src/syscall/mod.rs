@@ -14,7 +14,6 @@ use crate::process::{
     scheduler,
     thread::{self, ThreadState, THREAD_TABLE},
     Context,
-    FileDescriptorTable,
     ProcessId,
     ThreadId,
 };
@@ -22,7 +21,7 @@ use crate::process::elf_loader::{self, TargetArch};
 use crate::security::{
     CapMask, PrivilegeLevel, CAP_CONSOLE_IO, CAP_PROC_MANAGE, CAP_VM_MANAGE,
 };
-use crate::process::loader::{self, TargetArch};
+use crate::process::loader;
 use crate::userspace;
 
 pub mod entry;
@@ -38,6 +37,7 @@ pub enum Errno {
 }
 
 pub type SyscallResult = Result<usize, Errno>;
+pub type SyscallError = Errno;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -114,9 +114,6 @@ pub const SYS_SIGNAL: usize = 14;
 
 pub const SYS_EXECVE: usize = SYS_EXEC;
 pub const SYS_WAITPID: usize = SYS_WAIT;
-
-pub const SYS_OPEN: usize = 11;
-pub const SYS_CLOSE: usize = 12;
 pub const SYS_IOCTL: usize = 13;
 pub const SYS_YIELD: usize = 14;
 pub const SYS_NANOSLEEP: usize = 15;
