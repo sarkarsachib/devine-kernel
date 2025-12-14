@@ -27,6 +27,10 @@ typedef long pid_t;
 #define SYS_CLONE  8
 #define SYS_WRITE  9
 #define SYS_READ   10
+#define SYS_OPEN   11
+#define SYS_CLOSE  12
+#define SYS_PIPE   13
+#define SYS_DUP2   23
 
 static long __syscall6(long number, long a1, long a2, long a3, long a4, long a5, long a6) {
 #ifdef __x86_64__
@@ -1432,6 +1436,22 @@ int exec(const char *path, const char *const argv[]) {
 
 int wait(int pid) {
     return (int)__syscall6(SYS_WAIT, pid, 0, 0, 0, 0, 0);
+}
+
+int waitpid(int pid, int *status) {
+    return (int)__syscall6(SYS_WAIT, pid, (long)status, 0, 0, 0, 0);
+}
+
+int pipe(int pipefd[2]) {
+    return (int)__syscall6(SYS_PIPE, (long)pipefd, 0, 0, 0, 0, 0);
+}
+
+int dup2(int oldfd, int newfd) {
+    return (int)__syscall6(SYS_DUP2, oldfd, newfd, 0, 0, 0, 0);
+}
+
+int close(int fd) {
+    return (int)__syscall6(SYS_CLOSE, fd, 0, 0, 0, 0, 0);
 }
 
 int getpid(void) {

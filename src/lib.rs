@@ -13,6 +13,10 @@ pub mod hwinfo;
 pub mod x86_64;
 pub mod arm64;
 
+pub mod lib;
+
+pub mod cpu;
+
 #[cfg(not(test))]
 use core::panic::PanicInfo;
 
