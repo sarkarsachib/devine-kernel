@@ -24,6 +24,7 @@ use crate::process::loader::{self, TargetArch};
 use crate::security::{
     CapMask, PrivilegeLevel, CAP_CONSOLE_IO, CAP_PROC_MANAGE, CAP_VM_MANAGE,
 };
+use crate::process::loader;
 use crate::userspace;
 
 pub mod entry;
@@ -40,6 +41,7 @@ pub enum Errno {
 }
 
 pub type SyscallResult = Result<usize, Errno>;
+pub type SyscallError = Errno;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -114,6 +116,11 @@ pub const SYS_READ: usize = 10;
 pub const SYS_OPEN: usize = 11;
 pub const SYS_CLOSE: usize = 12;
 pub const SYS_PIPE: usize = 13;
+pub const SYS_SIGNAL: usize = 14;
+
+pub const SYS_EXECVE: usize = SYS_EXEC;
+pub const SYS_WAITPID: usize = SYS_WAIT;
+pub const SYS_IOCTL: usize = 13;
 pub const SYS_YIELD: usize = 14;
 pub const SYS_NANOSLEEP: usize = 15;
 pub const SYS_IPC_SEND: usize = 16;
@@ -711,6 +718,13 @@ fn sys_close(args: SyscallArgs) -> SyscallResult {
     } else {
         Err(Errno::EBADF)
     }
+fn sys_yield(_: SyscallArgs) -> SyscallResult {
+    scheduler::yield_cpu();
+    Ok(0)
+}
+
+fn sys_open(_path_ptr: usize, _flags: usize, _mode: usize) -> SyscallResult {
+    Err(SyscallError::InvalidSyscall)
 }
 
 fn sys_pipe(args: SyscallArgs) -> SyscallResult {
