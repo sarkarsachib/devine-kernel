@@ -125,5 +125,42 @@ void vfs_create_device_node(const char* path, u64 mode, u32 major, u32 minor) {
     console_print_dec(major);
     console_print(", minor=");
     console_print_dec(minor);
+    console_print(", mode=0");
+    console_print_hex(mode);
     console_print(")\n");
+}
+
+// Additional device utility functions
+device_t* device_find_by_name(const char* name) {
+    device_t* dev = devices;
+    while (dev && strcmp(dev->name, name) != 0) {
+        dev = dev->next;
+    }
+    return dev;
+}
+
+i32 device_unregister(const char* name) {
+    device_t* dev = devices;
+    device_t* prev = NULL;
+    
+    while (dev) {
+        if (strcmp(dev->name, name) == 0) {
+            if (prev) {
+                prev->next = dev->next;
+            } else {
+                devices = dev->next;
+            }
+            
+            console_print("Unregistered device: ");
+            console_print(name);
+            console_print("\n");
+            
+            free(dev);
+            return 0;
+        }
+        prev = dev;
+        dev = dev->next;
+    }
+    
+    return ERR_NOT_FOUND;
 }
