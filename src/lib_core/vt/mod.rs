@@ -6,8 +6,8 @@ pub mod screen;
 #[cfg(test)]
 mod tests;
 
-use crate::lib::vt::parser::{Parser, Action};
-use crate::lib::vt::screen::{ScreenBuffer, Color, Attr, Cell};
+use crate::lib_core::vt::parser::{Parser, Action};
+use crate::lib_core::vt::screen::{ScreenBuffer, Color, Attr, Cell};
 use alloc::vec::Vec;
 
 pub trait TerminalDriver {

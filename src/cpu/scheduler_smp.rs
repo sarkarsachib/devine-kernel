@@ -2,7 +2,7 @@
 /// 
 /// Supports per-CPU run queues and load balancing
 
-use crate::lib::spinlock::Spinlock;
+use crate::lib_core::spinlock::Spinlock;
 use crate::cpu::percpu::{CpuInfo, MAX_CPUS};
 
 /// Per-CPU scheduler run queue

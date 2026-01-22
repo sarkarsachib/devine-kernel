@@ -1,5 +1,5 @@
 use super::*;
-use crate::lib::vt::screen::{Color, Cell};
+use crate::lib_core::vt::screen::{Color, Cell};
 
 struct MockDriver;
 impl TerminalDriver for MockDriver {
