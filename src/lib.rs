@@ -16,7 +16,7 @@ pub mod x86_64;
 #[cfg(target_arch = "aarch64")]
 pub mod arm64;
 
-pub mod lib;
+pub mod lib_core;
 
 pub mod cpu;
 

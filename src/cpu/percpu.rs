@@ -7,7 +7,7 @@
 /// - Interrupt statistics
 /// - Cycle counters for profiling
 
-use crate::lib::spinlock::Spinlock;
+use crate::lib_core::spinlock::Spinlock;
 use core::mem::MaybeUninit;
 
 #[derive(Debug, Clone, Copy)]

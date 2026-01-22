@@ -20,7 +20,7 @@ use crate::process::{
     ProcessId,
     ThreadId,
 };
-use crate::process::loader::{self, TargetArch};
+use crate::process::loader::TargetArch;
 use crate::security::{
     CapMask, PrivilegeLevel, CAP_CONSOLE_IO, CAP_PROC_MANAGE, CAP_VM_MANAGE,
 };
@@ -120,7 +120,6 @@ pub const SYS_READ: usize = 10;
 pub const SYS_OPEN: usize = 11;
 pub const SYS_CLOSE: usize = 12;
 pub const SYS_PIPE: usize = 13;
-pub const SYS_SIGNAL: usize = 14;
 pub const SYS_IOCTL: usize = 15;
 pub const SYS_YIELD: usize = 16;
 pub const SYS_NANOSLEEP: usize = 17;
@@ -131,19 +130,6 @@ pub const SYS_SHM_MAP: usize = 21;
 pub const SYS_SYSFS_READ: usize = 22;
 pub const SYS_SYSFS_WRITE: usize = 23;
 pub const SYS_DEBUG_LOG: usize = 24;
-
-pub const SYS_EXECVE: usize = SYS_EXEC;
-pub const SYS_WAITPID: usize = SYS_WAIT;
-pub const SYS_IOCTL: usize = 13;
-pub const SYS_YIELD: usize = 14;
-pub const SYS_NANOSLEEP: usize = 15;
-pub const SYS_IPC_SEND: usize = 16;
-pub const SYS_IPC_RECV: usize = 17;
-pub const SYS_SHM_CREATE: usize = 18;
-pub const SYS_SHM_MAP: usize = 19;
-pub const SYS_SYSFS_READ: usize = 20;
-pub const SYS_SYSFS_WRITE: usize = 21;
-pub const SYS_DEBUG_LOG: usize = 22;
 pub const SYS_DUP2: usize = 23;
 
 pub const SYSCALL_MAX: usize = 32;
@@ -563,17 +549,8 @@ fn sys_exec(args: SyscallArgs) -> SyscallResult {
         let mut table = process::PROCESS_TABLE.lock();
         let env_refs: &[&str] = &["TERM=vt100", "COLORTERM=truecolor"];
         let process = table.get_process_mut(thread.process_id).ok_or(Errno::ESRCH)?;
-        let _loaded_check = elf_loader::load_executable(image, arch, &process.address_space, &argv_refs, env_refs)
-            .map_err(|_| Errno::EINVAL)?;
-        let process = table
-            .get_process_mut(thread.process_id)
-            .ok_or(Errno::ESRCH)?;
-        let loaded = loader::exec_into_process(process, image, arch, &argv_refs, &[])
-        let loaded = loader::exec_into_process(process, image, arch, &argv_refs, env_refs)
-            .map_err(|_| Errno::EINVAL)?;
-        process.name = path;
-        loaded
-        loader::exec_into_process(process, image, arch, &argv_refs, &[]).map_err(|_| Errno::EINVAL)?
+        loader::exec_into_process(process, image, arch, &argv_refs, env_refs)
+            .map_err(|_| Errno::EINVAL)?
     };
 
     let mut threads = THREAD_TABLE.lock();
@@ -731,37 +708,13 @@ fn sys_read(args: SyscallArgs) -> SyscallResult {
             Some(byte) => {
                 unsafe {
                     ((buf as *mut u8).add(read)).write(byte);
-    let pid = current_process_id()?;
-    let mut table = process::PROCESS_TABLE.lock();
-    let process = table.get_process_mut(pid).ok_or(Errno::ESRCH)?;
-    let entry = process.file_descriptors.get(fd).ok_or(Errno::EBADF)?;
-
-    match &entry.object {
-        FdObject::Stdin => {
-            let mut stdin = USER_STDIN.lock();
-            let mut read = 0;
-            while read < len {
-                match stdin.pop_front() {
-                    Some(byte) => {
-                        unsafe {
-                            ((buf as *mut u8).add(read)).write(byte);
-                        }
-                        read += 1;
-                    }
-                    None => break,
                 }
+                read += 1;
             }
-            Ok(read)
+            None => break,
         }
-        FdObject::Pipe(end) => {
-            if end.kind() != crate::process::PipeEndKind::Read {
-                return Err(Errno::EBADF);
-            }
-            let out = unsafe { slice::from_raw_parts_mut(buf as *mut u8, len) };
-            Ok(end.read(out))
-        }
-        _ => Err(Errno::EINVAL),
     }
+    Ok(read)
 }
 
 fn sys_close(args: SyscallArgs) -> SyscallResult {
@@ -776,6 +729,8 @@ fn sys_close(args: SyscallArgs) -> SyscallResult {
     } else {
         Err(Errno::EBADF)
     }
+}
+
 fn sys_yield(_: SyscallArgs) -> SyscallResult {
     scheduler::yield_cpu();
     Ok(0)
@@ -856,11 +811,6 @@ fn sys_dup2(args: SyscallArgs) -> SyscallResult {
         .insert(newfd, flags, inheritable, object);
 
     Ok(newfd as usize)
-}
-
-fn sys_yield(_: SyscallArgs) -> SyscallResult {
-    scheduler::yield_cpu();
-    Ok(0)
 }
 
 pub fn feed_stdin(bytes: &[u8]) {
